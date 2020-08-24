@@ -1,8 +1,8 @@
-package com.goibibo.spark.datasources.v1
+package com.goibibo.spark.datasources.v1.gojdbc
 
 import java.sql.Connection
-import java.time.{LocalDateTime, ZoneId}
 import java.time.format.DateTimeFormatter
+import java.time.{LocalDateTime, ZoneId}
 
 import com.goibibo.models.ConnectionDef
 import com.goibibo.utils.{Helper, JDBCUtils, MysqlUtils, SparkUtils}
@@ -15,7 +15,7 @@ import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, Da
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Failure, Success, Try}
 
-class GoJDBC extends JdbcRelationProvider with CreatableRelationProvider
+class DefaultSource extends JdbcRelationProvider with CreatableRelationProvider
   with RelationProvider with DataSourceRegister with Logging {
 
   override def shortName(): String = "gojdbc"
