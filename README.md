@@ -36,5 +36,72 @@ Github Repo containing source code for spark3 datasources:
 		 
 	- The `numPartitions` option creates multiple [partitions](https://github.com/apache/spark/blob/v3.0.0/core/src/main/scala/org/apache/spark/Partition.scala). The partition contains a `whereClause` which is used while reading from source. Refer [JDBCPartition](https://github.com/apache/spark/blob/v3.0.0/core/src/main/scala/org/apache/spark/rdd/JdbcRDD.scala) for more details.
 	
+	**Parameters:**
+	* `url`: The JDBC URL (connection string) to establish connection to. Format - `jdbc:mysql://localhost/test?user=fred&password=secret`
+	* `loadType`: Supports full or incremental. In full load, it will read the entire table into dataframe without any filtering. In incremental load, it accepts **partitionColumn**, **offset** and optionally **numPartitions** to decide filtering and partitioning.
+	* `dbtable`: The table name in source database.
+	* `offset`: Max value of the **partitionColumn** in the past run. The dataframe returned would have all the records having values greater than the offset for **partitionColumn** . Supports timestamp, date and numeric offsets. Example - `"2020-08-24 18:18:07.0"` for timestamp, `4345454` for numeric types and `"2020-08-24"` for date columns
+	* `partitionColumn`: The column to be used for partitioning and filtering the dataframe. By filtering, we restrict the records that would be produced to dataframe. By partitioning, we create multiple partitions of dataframe (decided by **numPartitions**), and fire the same number of queries to mysql table.
+
+	**Usage:**
+	* **Incremental load with offset**
+		```
+		val df =spark
+		.read
+		.format("gojdbc")
+		.option("url",url)
+		.option("loadType","incremental")
+		.option("dbtable","booking")
+		.option("offset","2020-08-24 18:18:07.0")
+		.option("partitionColumn","last_updated")
+		.option("numPartitions",10)
+		.load()
+		```		
+	* **Incremental load with offset without numPartitions**
+		*Default value of 100 partitions would be used.*
+		```
+		val df =spark
+		.read
+		.format("gojdbc")
+		.option("url",url)
+		.option("loadType","incremental")
+		.option("dbtable","booking")
+		.option("offset","2020-08-24 18:18:07.0")
+		.option("partitionColumn","last_updated")
+		.load()
+		```		
+	* **Full load with partitionColumn and numPartitions**
+		```
+		val df =spark
+		.read
+		.format("gojdbc")
+		.option("url",url)
+		.option("loadType","full")
+		.option("dbtable","booking")
+		.option("partitionColumn","last_updated")
+		.option("numPartitions",1204)
+		.load()
+		```		
+	* **Full load with partitionColumn**
+		```
+		val df =spark
+		.read
+		.format("gojdbc")
+		.option("url",url)
+		.option("loadType","full")
+		.option("dbtable","booking")
+		.option("partitionColumn","last_updated")
+		.load()
+		```		
+	* **Full load without partitionColumn**
+		```
+		val df =spark
+		.read
+		.format("gojdbc")
+		.option("url",url)
+		.option("loadType","full")
+		.option("dbtable","booking")
+		.load()
+		```		
  
  - **redshift**: Optimized Redshift datasource with support for parquet. Currently, the default [spark-redshift datasource](https://github.com/databricks/spark-redshift) doesn't support unloading in parquet which affects the performance.
