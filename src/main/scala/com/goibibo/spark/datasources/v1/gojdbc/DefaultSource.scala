@@ -28,23 +28,26 @@ class DefaultSource extends JdbcRelationProvider with CreatableRelationProvider
         "inside the load(table_name) method call..")))
     val loadType: String = parameters.getOrElse("loadType", "incremental").toLowerCase
     val offset: String = parameters.getOrElse("offset", "")
-    val column: String = parameters.getOrElse("column", "")
+    val partitionColumn: String = parameters.getOrElse("partitionColumn", "")
     val numPartitions: Int = parameters.getOrElse("numPartitions", "100").toInt
+
+    if (loadType == "incremental") {
+      if (offset != "" && partitionColumn == "" || offset == "" && partitionColumn != "") {
+        throw new Exception("Please provide either both of partitionColumn and offset or None when loadType is set" +
+          " to incremental (default). With loadType set to full, partitionColumn is optional and offset is not required.")
+      }
+    } else if (loadType == "full") {
+      if (offset != "") {
+        throw new Exception("Please don't provide offset when loadType is set to full.")
+      }
+    }
+    else {
+      throw new Exception("Invalid loadType. Choices - full or incremental.")
+    }
+
 
     val spark = SparkUtils.getActiveSparkSession
     val sparkApplicationId = SparkUtils.getSparkApplicationId
-    val zone = ZoneId.systemDefault
-    val zoneOffSet = zone.getRules.getOffset(LocalDateTime.now())
-    var partitions = new ArrayBuffer[Partition]()
-
-    val params: Map[String, String] = Map(
-      "url" -> url,
-      "tableName" -> tableName,
-      "loadType" -> loadType,
-      "offset" -> offset,
-      "column" -> column,
-      "numPartitions" -> numPartitions.toString
-    )
 
     val jdbcPartitions: ArrayBuffer[Partition] = {
       for {
@@ -55,9 +58,9 @@ class DefaultSource extends JdbcRelationProvider with CreatableRelationProvider
           s"Could not find table $tableName in the database ${connectionDef.databasename}"))
 
         partitions: ArrayBuffer[Partition] <-
-          if (column != "") {
+          if (partitionColumn != "") {
             generatePartitions(
-              connectionDef.databasename, tableName, column, numPartitions: Int,
+              connectionDef.databasename, tableName, partitionColumn, numPartitions: Int,
               offset, loadType, numPartitions)(jdbcConnection)
           }
           else {
@@ -79,16 +82,18 @@ class DefaultSource extends JdbcRelationProvider with CreatableRelationProvider
     val options: Map[String, String] = parameters ++ Map(
       "url" -> url,
       "dbtable" -> tableName,
-      "partitionBy" -> column
-    ) - "user" - "password" - "offset" - "loadType" - "restrictions" - "splittable" - "column"
+      "partitionBy" -> partitionColumn
+    ) - "user" - "password" - "offset" - "loadType" - "column" - "partitionColumn"
 
     val jdbcOptions = new JDBCOptions(options)
 
     val sourceDetails: Map[String, Any] = Map(
       "tableName" -> tableName,
       "loadType" -> loadType,
+      "lastOffset" -> offset,
+      "numPartitions" -> numPartitions,
       "sparkApplicationId" -> sparkApplicationId,
-      "partitionColumn" -> column
+      "partitionColumn" -> partitionColumn
     )
 
     JDBCAccess.getBaseRelation(jdbcPartitions.toArray, jdbcOptions, sourceDetails)(spark)
@@ -205,7 +210,7 @@ class DefaultSource extends JdbcRelationProvider with CreatableRelationProvider
           else if (columnMaxTimestamp.isBefore(columnMinTimestamp)) {
             Failure(throw JDBCAccess.AnalysisException(
               s"The max value fetched - $columnMaxTimestamp for the" +
-                s" column $column is " +
+                s" partitionColumn $column is " +
                 s"smaller than the min value $columnMinTimestamp. " +
                 s"Unable to generate partitions..Exiting."))
           }
