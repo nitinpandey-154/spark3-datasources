@@ -23,7 +23,9 @@ class DefaultSource extends JdbcRelationProvider with CreatableRelationProvider
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]): BaseRelation = {
 
     val url: String = parameters("url")
-    val tableName: String = parameters("path")
+    val tableName: String = parameters.getOrElse("dbtable",
+      parameters.getOrElse("path", throw new Exception("Please provide the table name as dbtable or " +
+        "inside the load(table_name) method call..")))
     val loadType: String = parameters.getOrElse("loadType", "incremental").toLowerCase
     val offset: String = parameters.getOrElse("offset", "")
     val column: String = parameters.getOrElse("column", "")
